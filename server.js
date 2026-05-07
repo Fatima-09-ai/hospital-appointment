@@ -1,91 +1,231 @@
+
+
+// const express = require('express');
+// const cors = require('cors');
+
+// const app = express();
+
+// app.use(cors());
+// app.use(express.json());
+
+// const doctors = {
+//   cardiologist: [
+//     { id:'c1', name:'Dr. Ahmed Khan', fee:3000 },
+//     { id:'c2', name:'Dr. Ali Raza', fee:3500 },
+//   ],
+//   dermatologist: [
+//     { id:'d1', name:'Dr. Sana Malik', fee:2500 },
+//   ],
+//   gynecologist: [
+//     { id:'g1', name:'Dr. Ayesha Noor', fee:2800 },
+//   ],
+//   general: [
+//     { id:'g2', name:'Dr. Bilal Ahmed', fee:2000 },
+//   ],
+// };
+
+// app.post('/api/appointments', (req, res) => {
+
+//   const body = req.body;
+
+//   const doctor = doctors[body.department]?.find(
+//     d => d.id === body.doctorId
+//   );
+
+//   if (!doctor) {
+//     return res.json({
+//       success: false,
+//       error: 'Doctor not found'
+//     });
+//   }
+
+//   const fee = doctor.fee;
+//   const tax = Math.round(fee * 0.05);
+//   const total = fee + tax;
+
+//   const appointment = {
+//     appointmentId:
+//       'APT-' + Math.floor(Math.random() * 1000000),
+
+//     bookedAt: new Date(),
+
+//     patient: {
+//       firstName: body.firstName,
+//       lastName: body.lastName,
+//       email: body.email,
+//       phone: body.phone,
+//       dob: body.dob,
+//       gender: body.gender,
+//       emergencyContact: body.emergencyContact,
+//       emergencyPhone: body.emergencyPhone,
+//     },
+
+//     department: body.department,
+
+//     doctor: {
+//       id: doctor.id,
+//       name: doctor.name,
+//     },
+
+//     appointmentDate: body.appointmentDate,
+//     appointmentTime: body.appointmentTime,
+
+//     consultationFee: fee,
+//     tax: tax,
+//     grandTotal: total,
+//   };
+
+//   res.json({
+//     success: true,
+//     appointment,
+//   });
+// });
+
+// app.listen(3000, () => {
+//   console.log('Server running on http://localhost:3000');
+// });
 const express = require('express');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const cors = require('cors');
+const mongoose = require('mongoose');
+require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
 
-// Doctor data
+mongoose.connect(process.env.MONGO_URI)
+.then(() => console.log('MongoDB Connected'))
+.catch(err => console.log(err));
+
+const appointmentSchema = new mongoose.Schema({
+  patient: {
+    firstName: String,
+    lastName: String,
+    email: String,
+    phone: String,
+    dob: String,
+    gender: String,
+    emergencyContact: String,
+    emergencyPhone: String,
+  },
+
+  department: String,
+
+  doctor: {
+    id: String,
+    name: String,
+    fee: Number,
+  },
+
+  appointmentDate: String,
+  appointmentTime: String,
+  reason: String,
+
+  consultationFee: Number,
+  tax: Number,
+  grandTotal: Number,
+
+  appointmentId: String,
+  bookedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const Appointment = mongoose.model(
+  'Appointment',
+  appointmentSchema
+);
+
 const doctors = {
   cardiologist: [
-    { id: 'c1', name: 'Dr. Ahmed Raza', specialty: 'Cardiologist', fee: 3500, availability: 'Mon, Wed, Fri' },
-    { id: 'c2', name: 'Dr. Sarah Malik', specialty: 'Cardiologist', fee: 4000, availability: 'Tue, Thu, Sat' },
-    { id: 'c3', name: 'Dr. Omar Farooq', specialty: 'Cardiologist', fee: 3000, availability: 'Mon-Fri' }
+    { id:'c1', name:'Dr. Ahmed Khan', fee:3000 },
+    { id:'c2', name:'Dr. Ali Raza', fee:3500 },
   ],
   dermatologist: [
-    { id: 'd1', name: 'Dr. Ayesha Khan', specialty: 'Dermatologist', fee: 2500, availability: 'Mon, Wed, Fri' },
-    { id: 'd2', name: 'Dr. Bilal Hussain', specialty: 'Dermatologist', fee: 2000, availability: 'Tue, Thu' },
-    { id: 'd3', name: 'Dr. Nadia Saleem', specialty: 'Dermatologist', fee: 2800, availability: 'Mon-Sat' }
+    { id:'d1', name:'Dr. Sana Malik', fee:2500 },
   ],
   gynecologist: [
-    { id: 'g1', name: 'Dr. Fatima Zahra', specialty: 'Gynecologist', fee: 3000, availability: 'Mon, Wed, Fri' },
-    { id: 'g2', name: 'Dr. Hina Baig', specialty: 'Gynecologist', fee: 3500, availability: 'Tue, Thu, Sat' },
-    { id: 'g3', name: 'Dr. Sana Qureshi', specialty: 'Gynecologist', fee: 2800, availability: 'Mon-Fri' }
+    { id:'g1', name:'Dr. Ayesha Noor', fee:2800 },
   ],
   general: [
-    { id: 'gp1', name: 'Dr. Usman Ali', specialty: 'General Physician', fee: 1000, availability: 'Daily' },
-    { id: 'gp2', name: 'Dr. Mariam Iqbal', specialty: 'General Physician', fee: 800, availability: 'Daily' },
-    { id: 'gp3', name: 'Dr. Tariq Mehmood', specialty: 'General Physician', fee: 1200, availability: 'Mon-Sat' }
-  ]
+    { id:'g2', name:'Dr. Bilal Ahmed', fee:2000 },
+  ],
 };
 
-// In-memory appointments store
-const appointments = [];
+app.post('/api/appointments', async (req, res) => {
 
-// API: Get doctors by department
-app.get('/api/doctors/:department', (req, res) => {
-  const dept = req.params.department.toLowerCase();
-  const list = doctors[dept];
-  if (!list) return res.status(404).json({ error: 'Department not found' });
-  res.json(list);
+  try {
+
+    const body = req.body;
+
+    const doctor = doctors[body.department]?.find(
+      d => d.id === body.doctorId
+    );
+
+    if (!doctor) {
+      return res.json({
+        success: false,
+        error: 'Doctor not found',
+      });
+    }
+
+    const fee = doctor.fee;
+    const tax = Math.round(fee * 0.05);
+    const total = fee + tax;
+
+    const appointment = new Appointment({
+
+      patient: {
+        firstName: body.firstName,
+        lastName: body.lastName,
+        email: body.email,
+        phone: body.phone,
+        dob: body.dob,
+        gender: body.gender,
+        emergencyContact: body.emergencyContact,
+        emergencyPhone: body.emergencyPhone,
+      },
+
+      department: body.department,
+
+      doctor: {
+        id: doctor.id,
+        name: doctor.name,
+        fee: doctor.fee,
+      },
+
+      appointmentDate: body.appointmentDate,
+      appointmentTime: body.appointmentTime,
+      reason: body.reason,
+
+      consultationFee: fee,
+      tax: tax,
+      grandTotal: total,
+
+      appointmentId:
+        'APT-' + Math.floor(Math.random() * 1000000),
+    });
+
+    await appointment.save();
+
+    res.json({
+      success: true,
+      appointment,
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+
+  }
+
 });
 
-// API: Book appointment
-app.post('/api/appointments', (req, res) => {
-  const {
-    firstName, lastName, email, phone, dob, gender,
-    department, doctorId, appointmentDate, appointmentTime,
-    reason, emergencyContact, emergencyPhone
-  } = req.body;
-
-  // Find doctor
-  const deptDoctors = doctors[department.toLowerCase()];
-  if (!deptDoctors) return res.status(400).json({ error: 'Invalid department' });
-
-  const doctor = deptDoctors.find(d => d.id === doctorId);
-  if (!doctor) return res.status(400).json({ error: 'Doctor not found' });
-
-  const appointmentId = 'APT-' + uuidv4().split('-')[0].toUpperCase();
-  const bookedAt = new Date().toISOString();
-
-  const appointment = {
-    appointmentId,
-    bookedAt,
-    patient: { firstName, lastName, email, phone, dob, gender, emergencyContact, emergencyPhone },
-    doctor,
-    department,
-    appointmentDate,
-    appointmentTime,
-    reason,
-    status: 'Confirmed',
-    totalFee: doctor.fee,
-    tax: Math.round(doctor.fee * 0.05),
-    grandTotal: Math.round(doctor.fee * 1.05)
-  };
-
-  appointments.push(appointment);
-  res.json({ success: true, appointment });
-});
-
-// Serve main HTML
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`Hospital Appointment Server running on port ${PORT}`);
+app.listen(process.env.PORT, () => {
+  console.log('Server Running');
 });
