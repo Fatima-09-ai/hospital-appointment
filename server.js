@@ -84,9 +84,14 @@
 // app.listen(3000, () => {
 //   console.log('Server running on http://localhost:3000');
 // });
+// const express = require('express');
+require('dotenv').config();
+
 const express = require('express');
-const cors = require('cors');
 const mongoose = require('mongoose');
+
+const cors = require('cors');
+// const mongoose = require('mongoose');
 require('dotenv').config();
 
 const app = express();
